@@ -4,6 +4,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel
 import ollama
 from dotenv import load_dotenv
+import time
 
 # Load environment variables from .env file
 load_dotenv()
@@ -20,11 +21,17 @@ security = HTTPBearer()
 
 # Cache available models
 MODEL_CACHE = []
+UPDATE_INTERVAL = 3600  # 1 hour in seconds
+LAST_UPDATE_TIME = 0
 
 def update_model_cache():
     """Updates the cached list of available models in Ollama."""
-    global MODEL_CACHE
-    MODEL_CACHE = [model["model"] for model in ollama.list()["models"]]
+    global MODEL_CACHE, LAST_UPDATE_TIME
+    current_time = time.time()
+    if current_time - LAST_UPDATE_TIME > UPDATE_INTERVAL:
+        print(f"🔄 Updating model cache at {current_time}...")
+        MODEL_CACHE = [model["model"].replace(":latest", "") for model in ollama.list()["models"]]
+        LAST_UPDATE_TIME = current_time
 
 # Initial cache population
 update_model_cache()
@@ -60,7 +67,7 @@ async def chat_completions(request: OpenAIRequest):
 
     # Generate response
     response = ollama.chat(model=request.model, messages=request.messages)
-    return {"choices": [{"message": response['message']}]}
+    return {"choices": [{"message": response['message']}], "model" : request.model} 
 
 # Health Check Endpoint
 @app.get("/")
